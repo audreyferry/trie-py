@@ -2,9 +2,10 @@
 unicode = True
 import codecs
 import pygraphviz as pgv
-import marisa_trie
+#import marisa_trie         # audrey - commented this out  2015_01_10
 
 side = "suffix"
+#side = "prefix"
 
 def lengthofcommonprefix (s1, s2):
 	length = len(s1)
@@ -16,14 +17,14 @@ def lengthofcommonprefix (s1, s2):
 	return length
  
 
-def lengthofcommonsuffix (s1, s2):
+def lengthofcommonsuffix (s1, s2):   # ALERT! Return is now nonnegative
 	length = len(s1)
 	if length > len(s2):
 		length = len(s2)
-	for i in range(-1,-1*length,-1):
-		if s1[i] != s2[i]:
+	for i in range(length):
+		if s1[-(i+1)] != s2[-(i+1)]:
 			return i
-	return -1* length
+	return length
  
 #--------------------------------------------------------------------##
 #		Main program begins on line 174
@@ -37,7 +38,7 @@ import os
 import codecs # for utf8
 import string
 import copy
-from collections import defaultdict
+#from collections import defaultdict   #used dict function setdefault() instead - audrey 2015_01_30
  
 
 #--------------------------------------------------------------------##
@@ -55,7 +56,6 @@ outfolder     		= datafolder + language + "/lxa/"
 infolder 		= datafolder + language + '/dx1_files/'	
 
 infilename 			= infolder  + short_filename     + ".dx1"
-stemfilename 			= infolder  + short_filename     + "_stems.txt"
 outfile_FSA_name		= outfolder + out_short_filename + "_FSA.txt"
 outfile_FSA_graphics_name	= outfolder + out_short_filename + "_FSA_graphics.png"
 outfile_log_name 		= outfolder + out_short_filename + "_log.txt"
@@ -85,11 +85,12 @@ else:
  
 
   
-MinimumStemLength 	=5
+MinimumStemLength 	= 5
 MaximumAffixLength 	= 3
 MinimumNumberofSigUses 	= 10
 
 print >>log_file, "Language: ", language
+print >>log_file, "Side: ", side
 print >>log_file, "Minimum Stem Length", MinimumStemLength, "\nMaximum Affix Length", MaximumAffixLength, "\n Minimum Number of Signature uses: ", MinimumNumberofSigUses
 print >>log_file, "Date:", 
 
@@ -131,6 +132,7 @@ if side == "prefix":
 	for word in wordlist:
 		ReversedWords.append(word[::-1])
 	ReversedWords.sort()
+	#ReversedWords = ReversedWords[4400:]      # THIS IS STRICTLY TEMP!!!  TO GET PAST PUNCTUATION  2015_01_31
 	wordlist = list()
 	for word in ReversedWords:
 		wordlist.append(word[::-1])
@@ -147,7 +149,6 @@ for i in range(1,len(wordlist)):
 			continue
 		commonprefix = thisword[:m]
 		
-
 		if commonprefix in FoundPrefixes:
 			previousword=thisword
 			continue	
@@ -165,26 +166,25 @@ for i in range(1,len(wordlist)):
 	 	 	FoundPrefixes[commonprefix] = 1
 		previousword=thisword
 	elif side=="prefix":
-		m=lengthofcommonsuffix(previousword,thisword)
-		commonsuffix = thisword[m+1:]
+		m=lengthofcommonsuffix(previousword,thisword)  #ALERT: m is now nonnegative
+		commonsuffix = thisword[-m:]
 
-		if -1*m < MinimumStemLength:
+		if m < MinimumStemLength:
 			previousword=thisword
 			continue
 		
-	
 		if commonsuffix in FoundSuffixes:
 			previousword=thisword
 			continue	
 		else: 
 			for j in range(i-1,0,-1):
-				if wordlist[j][m+1:] == commonsuffix:
-					bl[j].add(len(wordlist[j])+m+1)
+				if wordlist[j][-m:] == commonsuffix:
+					bl[j].add(len(wordlist[j])-m)
 				else:
 					break
 			for j in range(i,len(wordlist)):
-				if wordlist[j][m+1:] == commonsuffix:
-					bl[j].add(len(wordlist[j])+m+1)
+				if wordlist[j][-m:] == commonsuffix:
+					bl[j].add(len(wordlist[j])-m)
 				else:
 					break
 	 	 	FoundSuffixes[commonsuffix] = 1
@@ -267,7 +267,39 @@ for i in range(len(wordlist)):
 		print >>trie_outfile
 		
 
- 
+#---------------------------------------------------------------------------------#
+#       Create trie using the word pieces to form nested dictionaries
+#       Based on first program at
+#       http://stackoverflow.com/questions/11015320/how-to-create-a-trie-in-python
+#       audrey  2015_01_30
+#---------------------------------------------------------------------------------#
+
+if side == "prefix":
+	for word in wordlist:
+		WordsBroken[word].reverse()     # puts stem at the root
+		
+#count = 0						#for development
+root = dict()
+for word in wordlist:
+	current = root
+	#print "word is ", word				#for development
+	if len(WordsBroken[word]) == 0:
+		#print					#for development
+		continue
+	for piece in WordsBroken[word]:
+		#print "   piece is ", piece		#for development
+		current = current.setdefault(piece, {})
+	current[None] = None
+	if False:					#for development
+		print "key is ", WordsBroken[word][0]
+		print "value is ", root[WordsBroken[word][0]]
+		print
+		
+		count = count+1
+		if count>40:
+			break
+			
+		
 
 #---------------------------------------------------------------------------------#	
 #	Close output files
